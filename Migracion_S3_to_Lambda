@@ -1,0 +1,84 @@
+import json
+import mysql.connector
+import boto3
+
+def lambda_handler(event, context):
+    
+    # CONECTAR A LA BASE DE DATOS RDS
+    try:
+        cnx =mysql.connector.connect(
+            host='database-1.cfx4vvlryidj.us-east-1.rds.amazonaws.com',
+            user='admin',
+            password='Graciasporeso452',
+            database ="GLOBANT_TEST"
+            )
+        cursor = cnx.cursor()
+        #obtner los datos del evento
+        data = json.loads(event["body"])
+        mensajes_error = []
+
+        for data_item in data:
+            mensaje=""
+            diff1= "name"
+            diff2= "department"
+            diff3= "job"
+            if (
+                    diff1 in data_item
+                    and isinstance(data_item["id"], int)
+                    and isinstance(data_item["name"], str)
+                    and isinstance(data_item["datetime"], str)
+                    and isinstance(data_item["department_id"], int)
+                    and isinstance(data_item["job_id"], int)
+                ):
+                query=(
+                        "INSERT INTO HIRED_EMPLOYEES (id, nombre, fecha_cnttcn, department_id, job_id) "
+                        "VALUES (%s, %s, %s, %s, %s) "
+                        "ON DUPLICATE KEY UPDATE "
+                        "nombre=VALUES(nombre), fecha_cnttcn=VALUES(fecha_cnttcn), "
+                        "department_id=VALUES(department_id), job_id=VALUES(job_id)")
+                values = (data_item["id"],data_item["name"],data_item["datetime"],data_item["department_id"],data_item["job_id"])
+                cursor.execute(query,values)
+            elif (
+                    diff2 in data_item
+                    and isinstance(data_item["id"], int)
+                    and isinstance(data_item["department"], str)
+                ):
+                query=(
+                        "INSERT INTO DEPARTMENTS (id, department) "
+                        "VALUES (%s, %s) "
+                        "ON DUPLICATE KEY UPDATE "
+                        "department=VALUES(department)")
+                values = (data_item["id"],data_item["department"])
+                cursor.execute(query,values)
+            elif (
+                    diff3 in data_item
+                    and isinstance(data_item["id"], int)
+                    and isinstance(data_item["job"], str)
+                ):
+                query=(
+                        "INSERT INTO JOBS (id, job) VALUES (%s, %s) "
+                        "ON DUPLICATE KEY UPDATE job=VALUES(job)")
+                values = (data_item["id"],data_item["job"])
+                cursor.execute(query,values)
+            else:
+                mensajes_error.append("formato no valido " + str(data_item)+ " ")
+            
+        cnx.commit()    
+        cursor.close()
+        cnx.close()
+    
+        return {
+            'statusCode': 200,
+            'body': json.dumps({
+                "message": "tablas actualizadas, datos fallidos" + str(mensajes_error)
+            })
+        }
+    except Exception as e:
+        #Devolver una respuesta de error
+        return{
+            "statusCode":500,
+            "body":json.dumps({
+                "message":"se ha producido un error al cargar los datos",
+                "error":str(e)
+            })
+        }
